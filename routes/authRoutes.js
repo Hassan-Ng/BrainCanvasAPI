@@ -17,6 +17,8 @@ const generateToken = (user) => {
 // Signup
 router.post('/signup', async (req, res) => {
   const { email, password, firstName, lastName } = req.body;
+  console.log(email, password, firstName, lastName);
+  
   try {
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ error: 'Email already in use' });
