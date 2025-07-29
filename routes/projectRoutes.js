@@ -2,61 +2,61 @@ const express = require('express');
 const router = express.Router();
 const Project = require('../models/Project');
 
-// GET /api/projects
 router.get('/', async (req, res) => {
-  try {
-    const {
-      public: isPublic,
-      starred,
-      search,
-      authorId
-    } = req.query;
+    try {
+        const {
+            public: isPublic,
+            starred,
+            search,
+            authorId
+        } = req.query;
 
-    let filter = {};
+        let filter = {};
 
-    if (isPublic === 'true') filter.isPublic = true;
-    if (authorId) filter.authorId = authorId;
+        if (isPublic === 'true') filter.isPublic = true;
+        if (authorId) filter.author = authorId;
 
-    if (search) {
-      const regex = new RegExp(search, 'i');
-      filter.$or = [
-        { name: regex },
-        { description: regex }
-      ];
+        if (search) {
+            const regex = new RegExp(search, 'i');
+            filter.$or = [
+                { name: regex },
+                { description: regex }
+            ];
+        }
+
+        if (starred === 'true' && req.user) {
+            filter.isFavoriteBy = req.user.id; // matches user's favorites
+        }
+
+        const projects = await Project.find(filter)
+            .sort({ updatedAt: -1 })
+            .populate('author', 'firstName lastName') // optional
+            .populate('collaborators', 'firstName lastName email');
+
+        const formatted = projects.map(p => ({
+            id: p._id,
+            name: p.name,
+            description: p.description,
+            location: p.location,
+            created: timeAgo(p.createdAt),
+            edited: timeAgo(p.updatedAt),
+            comments: p.comments,
+            author: p.author?.firstName + ' ' + p.author?.lastName,
+            authorId: p.author?._id,
+            isPublic: p.isPublic,
+            isFavorite: req.user ? p.isFavoriteBy.includes(req.user.id) : false,
+            thumbnail: p.thumbnail,
+            collaborators: p.collaborators,
+            canvasData: p.canvasData,
+        }));
+
+        res.json(formatted);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-
-    // If `starred=true`, you'd typically need the user ID from auth middleware
-    if (starred === 'true' && req.user) {
-      filter.isFavorite = true;
-      filter.authorId = req.user.id; // requires auth middleware
-    }
-
-    const projects = await Project.find(filter).sort({ edited: -1 });
-
-    const formatted = projects.map(p => ({
-      id: p._id,
-      name: p.name,
-      description: p.description,
-      location: p.location,
-      created: timeAgo(p.created),
-      edited: timeAgo(p.edited),
-      comments: p.comments,
-      author: p.author,
-      authorId: p.authorId,
-      isPublic: p.isPublic,
-      isFavorite: p.isFavorite,
-      thumbnail: p.thumbnail,
-      collaborators: p.collaborators,
-      canvasData: p.canvasData,
-    }));
-
-    res.json(formatted);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
-// POST /api/projects
+
 router.post('/', async (req, res) => {
   try {
     const {
@@ -66,32 +66,15 @@ router.post('/', async (req, res) => {
       collaboratorIds = []
     } = req.body;
 
-    // Simulate authenticated user (replace with auth middleware later)
-    const mockAuthor = {
-      id: '64b7c6f2c13fa2c3e57a8321', // change to ObjectId format
-      name: 'Sarah Chen'
-    };
-
-    // Prepare collaborators
-    const collaborators = collaboratorIds.map(id => ({
-      userId: id,
-      name: `User ${id.slice(-4)}` // Mock names – in real app, lookup from User model
-    }));
+    const authorId = req.user?.id || '64b7c6f2c13fa2c3e57a8321'; // fallback for now
 
     const newProject = new Project({
       name,
       description,
-      location: 'Team Workspace',
       isPublic,
-      isFavorite: false,
-      created: new Date(),
-      edited: new Date(),
-      comments: 0,
-      author: mockAuthor.name,
-      authorId: mockAuthor.id,
-      thumbnail: null,
-      collaborators,
-      canvasData: {} // empty for now
+      author: authorId,
+      collaborators: collaboratorIds,
+      canvasData: {},
     });
 
     const saved = await newProject.save();
@@ -101,13 +84,12 @@ router.post('/', async (req, res) => {
       name: saved.name,
       description: saved.description,
       location: saved.location,
-      created: timeAgo(saved.created),
-      edited: timeAgo(saved.edited),
+      created: timeAgo(saved.createdAt),
+      edited: timeAgo(saved.updatedAt),
       comments: saved.comments,
-      author: saved.author,
-      authorId: saved.authorId,
+      authorId: saved.author,
       isPublic: saved.isPublic,
-      isFavorite: saved.isFavorite,
+      isFavorite: false,
       thumbnail: saved.thumbnail,
       collaborators: saved.collaborators,
       canvasData: saved.canvasData
@@ -118,17 +100,110 @@ router.post('/', async (req, res) => {
   }
 });
 
+
+router.put('/:id', authMiddleware, async (req, res) => {
+    try {
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (!project.author.equals(req.user.id)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        const updates = req.body;
+        Object.assign(project, updates);
+        await project.save();
+
+        res.json(project);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to update project' });
+    }
+});
+
+router.delete('/:id', authMiddleware, async (req, res) => {
+    try {
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (!project.author.equals(req.user.id)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        await Project.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Project deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to delete project' });
+    }
+});
+
+router.post('/:id/favorite', authMiddleware, async (req, res) => {
+    try {
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        const userId = req.user.id;
+        const index = project.isFavoriteBy.indexOf(userId);
+        if (index === -1) {
+            project.isFavoriteBy.push(userId);
+        } else {
+            project.isFavoriteBy.splice(index, 1);
+        }
+
+        await project.save();
+        res.json({ isFavorite: index === -1 });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to toggle favorite' });
+    }
+});
+
+router.post('/:id/collaborators', authMiddleware, async (req, res) => {
+    const { userIds } = req.body;
+    try {
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (!project.author.equals(req.user.id)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        project.collaborators.push(...userIds.filter(id => !project.collaborators.includes(id)));
+        await project.save();
+        res.json({ message: 'Collaborators added', updatedCollaborators: project.collaborators });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to add collaborators' });
+    }
+});
+
+router.delete('/:id/collaborators/:userId', authMiddleware, async (req, res) => {
+    try {
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (!project.author.equals(req.user.id)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        project.collaborators = project.collaborators.filter(id => id.toString() !== req.params.userId);
+        await project.save();
+
+        res.json({ message: 'Collaborator removed' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to remove collaborator' });
+    }
+});
+
+
 // Simple time ago function
 function timeAgo(date) {
-  const diff = Date.now() - new Date(date).getTime();
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
-  if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-  if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-  return 'just now';
+    const diff = Date.now() - new Date(date).getTime();
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    return 'just now';
 }
 
 module.exports = router;
