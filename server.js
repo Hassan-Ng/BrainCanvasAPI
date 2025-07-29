@@ -3,10 +3,10 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
+const authMiddleware = require('./middleware/authMiddleware');
 const projectRoutes = require('./routes/projectRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const authMiddleware = require('./middleware/authMiddleware');
 
 const app = express();
 
