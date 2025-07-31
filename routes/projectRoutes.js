@@ -57,7 +57,6 @@ router.get('/', async (req, res) => {
     }
 });
 
-
 router.post('/', async (req, res) => {
   try {
     const {
@@ -101,8 +100,22 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.get('/:id', async (req, res) => {
+    try {
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
 
-router.put('/:id', authMiddleware, async (req, res) => {
+        if (!project.author.equals(req.user.id)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        res.json(project);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to find project' });
+    }
+});
+
+router.put('/:id', async (req, res) => {
     try {
         const project = await Project.findById(req.params.id);
         if (!project) return res.status(404).json({ error: 'Project not found' });
@@ -121,7 +134,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 });
 
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
         const project = await Project.findById(req.params.id);
         if (!project) return res.status(404).json({ error: 'Project not found' });
@@ -137,7 +150,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     }
 });
 
-router.post('/:id/favorite', authMiddleware, async (req, res) => {
+router.post('/:id/favorite', async (req, res) => {
     try {
         const project = await Project.findById(req.params.id);
         if (!project) return res.status(404).json({ error: 'Project not found' });
@@ -157,7 +170,7 @@ router.post('/:id/favorite', authMiddleware, async (req, res) => {
     }
 });
 
-router.post('/:id/collaborators', authMiddleware, async (req, res) => {
+router.post('/:id/collaborators', async (req, res) => {
     const { userIds } = req.body;
     try {
         const project = await Project.findById(req.params.id);
@@ -175,7 +188,7 @@ router.post('/:id/collaborators', authMiddleware, async (req, res) => {
     }
 });
 
-router.delete('/:id/collaborators/:userId', authMiddleware, async (req, res) => {
+router.delete('/:id/collaborators/:userId', async (req, res) => {
     try {
         const project = await Project.findById(req.params.id);
         if (!project) return res.status(404).json({ error: 'Project not found' });
