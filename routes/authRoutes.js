@@ -34,12 +34,7 @@ router.post('/signup', async (req, res) => {
     const token = generateToken(user);
     res.status(201).json({
       token,
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName
-      }
+      user
     });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -59,12 +54,7 @@ router.post('/signin', async (req, res) => {
     const token = generateToken(user);
     res.json({
       token,
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName
-      }
+      user
     });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
