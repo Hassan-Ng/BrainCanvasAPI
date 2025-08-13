@@ -33,11 +33,19 @@ io.on('connection', (socket) => {
 
   socket.on('join-room', (roomId) => {
     socket.join(roomId);
+    // also emit to the room that a user has joined
     console.log(`Socket ${socket.id} joined room ${roomId}`);
   });
 
   socket.on('canvas-update', ({ roomId, data, source }) => {
     socket.to(roomId).emit('canvas-update', {canvasData: data, source});
+  });
+
+  socket.on("cursor-update", ({ roomId, cursorData }) => {
+    socket.to(roomId).emit("cursor-update", {
+      socketId: socket.id,
+      cursorData
+    });
   });
 
   socket.on('disconnect', () => {
