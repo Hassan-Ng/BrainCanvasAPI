@@ -58,58 +58,65 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  try {
-    const {
-      name,
-      description,
-      isPublic = false,
-      collaboratorIds = []
-    } = req.body;
+    try {
+        const {
+            name,
+            description,
+            isPublic = false,
+            collaboratorIds = []
+        } = req.body;
 
-    const authorId = req.user?.id || '64b7c6f2c13fa2c3e57a8321'; // fallback for now
+        const authorId = req.user?.id || '64b7c6f2c13fa2c3e57a8321'; // fallback for now
 
-    const newProject = new Project({
-      name,
-      description,
-      isPublic,
-      author: authorId,
-      collaborators: collaboratorIds,
-      canvasData: {},
-    });
+        const newProject = new Project({
+            name,
+            description,
+            isPublic,
+            author: authorId,
+            collaborators: collaboratorIds,
+            canvasData: {},
+        });
 
-    const saved = await newProject.save();
+        const saved = await newProject.save();
 
-    res.status(201).json({
-      id: saved._id,
-      name: saved.name,
-      description: saved.description,
-      location: saved.location,
-      created: timeAgo(saved.createdAt),
-      edited: timeAgo(saved.updatedAt),
-      comments: saved.comments,
-      authorId: saved.author,
-      isPublic: saved.isPublic,
-      isFavorite: false,
-      thumbnail: saved.thumbnail,
-      collaborators: saved.collaborators,
-      canvasData: saved.canvasData
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
+        res.status(201).json({
+            id: saved._id,
+            name: saved.name,
+            description: saved.description,
+            location: saved.location,
+            created: timeAgo(saved.createdAt),
+            edited: timeAgo(saved.updatedAt),
+            comments: saved.comments,
+            authorId: saved.author,
+            isPublic: saved.isPublic,
+            isFavorite: false,
+            thumbnail: saved.thumbnail,
+            collaborators: saved.collaborators,
+            canvasData: saved.canvasData
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 router.get('/:id', async (req, res) => {
     try {
         const project = await Project.findById(req.params.id);
+        console.log(project);
+        
         if (!project) return res.status(404).json({ error: 'Project not found' });
 
-        if (!project.author.equals(req.user.id)) {
+        const isOwner = req.user && project.author.equals(req.user.id);
+
+        if (!isOwner && !project.isPublic) {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
-        res.json(project);
+        res.json({
+            ...project.toObject(),
+            canEdit: isOwner, // This tells the frontend to enter view-only mode
+        });
     } catch (err) {
         res.status(500).json({ error: 'Failed to find project' });
     }
