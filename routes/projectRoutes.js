@@ -100,7 +100,7 @@ router.post('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
     try {
-        const project = await Project.findById(req.params.id).populate('collaborators', 'firstName lastName email');
+        const project = await Project.findById(req.params.id).populate('author').populate('collaborators', 'firstName lastName email');
         
         if (!project) return res.status(404).json({ error: 'Project not found' });
 
