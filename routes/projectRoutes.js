@@ -31,7 +31,7 @@ router.get('/', async (req, res) => {
 
         const projects = await Project.find(filter)
             .sort({ updatedAt: -1 })
-            .populate('author', 'firstName lastName') // optional
+            .populate('author') // optional
             .populate('collaborators', 'firstName lastName email');
 
         const formatted = projects.map(p => ({
@@ -41,8 +41,7 @@ router.get('/', async (req, res) => {
             location: p.location,
             created: timeAgo(p.createdAt),
             edited: timeAgo(p.updatedAt),
-            comments: p.comments,
-            author: p.author?.firstName + ' ' + p.author?.lastName,
+            author: p.author,
             authorId: p.author?._id,
             isPublic: p.isPublic,
             isFavorite: req.user ? p.isFavoriteBy.includes(req.user.id) : false,
@@ -86,7 +85,6 @@ router.post('/', async (req, res) => {
             location: saved.location,
             created: timeAgo(saved.createdAt),
             edited: timeAgo(saved.updatedAt),
-            comments: saved.comments,
             authorId: saved.author,
             isPublic: saved.isPublic,
             isFavorite: false,
@@ -102,20 +100,20 @@ router.post('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
     try {
-        const project = await Project.findById(req.params.id);
-        console.log(project);
+        const project = await Project.findById(req.params.id).populate('collaborators', 'firstName lastName email');
         
         if (!project) return res.status(404).json({ error: 'Project not found' });
 
         const isOwner = req.user && project.author.equals(req.user.id);
+        const isCollaborator = req.user && project.collaborators.some(c => c._id.equals(req.user.id));
 
-        if (!isOwner && !project.isPublic) {
+        if (!isOwner && !isCollaborator && !project.isPublic) {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
         res.json({
             ...project.toObject(),
-            canEdit: isOwner, // This tells the frontend to enter view-only mode
+            canEdit: isOwner || isCollaborator, // This tells the frontend to enter view-only mode
         });
     } catch (err) {
         res.status(500).json({ error: 'Failed to find project' });
