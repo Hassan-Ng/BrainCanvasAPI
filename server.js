@@ -10,7 +10,6 @@ const authMiddleware = require('./middleware/authMiddleware');
 const projectRoutes = require('./routes/projectRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const aiRoutes = require('./routes/aiRoutes');
 
 const app = express();
 const server = http.createServer(app); // Use http server for Socket.IO
@@ -27,7 +26,6 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', authMiddleware, projectRoutes);
 app.use('/api/users', authMiddleware, userRoutes);
-app.use('/api/ai', authMiddleware, aiRoutes);
 
 // Socket.IO handling
 io.on('connection', (socket) => {
