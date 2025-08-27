@@ -31,10 +31,23 @@ app.use('/api/users', authMiddleware, userRoutes);
 io.on('connection', (socket) => {
   console.log('⚡ A user connected:', socket.id);
 
-  socket.on('join-room', (roomId) => {
+  // socket.on('join-room', (roomId) => {
+  //   socket.join(roomId);
+  //   // also emit to the room that a user has joined
+  //   console.log(`Socket ${socket.id} joined room ${roomId}`);
+  // });
+
+  socket.on('join-room', ({ roomId, user }) => {
     socket.join(roomId);
-    // also emit to the room that a user has joined
+
     console.log(`Socket ${socket.id} joined room ${roomId}`);
+
+    // Notify all other users in the room
+    socket.to(roomId).emit('user-joined', {
+      socketId: socket.id,
+      user, // send username, color, etc. if you have that info
+      message: `A user joined the room`
+    });
   });
 
   socket.on('canvas-update', ({ roomId, data, source }) => {
